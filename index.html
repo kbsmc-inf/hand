@@ -2,39 +2,297 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>손위생 시뮬레이션 게임</title>
+
+    <!-- 모바일 화면 대응 -->
+    <meta name="viewport"
+          content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+
+    <title>손위생 게임</title>
+
     <style>
         * {
             box-sizing: border-box;
-            -webkit-touch-callout: none;
-            -webkit-user-select: none;
-            user-select: none;
         }
+
+        html,
         body {
             margin: 0;
             padding: 0;
-            background-color: #000;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            font-family: "Noto Sans KR", sans-serif;
+            background: #f5f7fa;
+        }
+
+        /* 게임 전체 영역 */
+        #game-container {
+            width: 100vw;
+            height: 100vh;
+
             display: flex;
             justify-content: center;
             align-items: center;
-            height: 100vh;
-            overflow: hidden;
-            font-family: 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif;
         }
-        canvas {
+
+        /* 실제 게임 화면 */
+        #gameCanvas {
+            width: min(100vw, calc(100vh * 1500 / 850));
+            height: min(100vh, calc(100vw * 850 / 1500));
+
+            max-width: 1500px;
+            max-height: 850px;
+
             display: block;
-            box-shadow: 0 0 20px rgba(0, 0, 0, 0.8);
-            max-width: 100%;
-            max-height: 100vh;
-            object-fit: contain;
+        }
+
+        /* 시작 화면 */
+        #start-screen {
+            position: absolute;
+            z-index: 10;
+
+            width: 100%;
+            max-width: 500px;
+
+            padding: 40px;
+            text-align: center;
+        }
+
+        #start-screen h1 {
+            margin-bottom: 30px;
+        }
+
+        #employee-id,
+        #department {
+            width: 100%;
+            padding: 14px;
+            margin-bottom: 12px;
+
+            border: 1px solid #ddd;
+            border-radius: 10px;
+
+            font-size: 16px;
+        }
+
+        #start-button {
+            width: 100%;
+            padding: 15px;
+
+            border: none;
+            border-radius: 10px;
+
+            font-size: 18px;
+            font-weight: bold;
+
+            cursor: pointer;
+        }
+
+        /* 게임 시작 후 숨김 */
+        .hidden {
+            display: none !important;
+        }
+
+        /* 순위보기 버튼 (시작 화면) */
+        #leaderboard-button {
+            width: 100%;
+            padding: 14px;
+            margin-top: 10px;
+
+            border: 1px solid #1976d2;
+            border-radius: 10px;
+            background: #ffffff;
+            color: #1976d2;
+
+            font-size: 16px;
+            font-weight: bold;
+
+            cursor: pointer;
+        }
+
+        /* 순위 모달 배경 */
+        #leaderboard-modal {
+            position: fixed;
+            inset: 0;
+            z-index: 20;
+
+            display: flex;
+            justify-content: center;
+            align-items: center;
+
+            background: rgba(0, 0, 0, 0.45);
+        }
+
+        /* 순위 모달 박스 */
+        #leaderboard-box {
+            position: relative;
+
+            width: 90%;
+            max-width: 480px;
+            max-height: 80vh;
+
+            padding: 30px 24px 24px;
+
+            background: #ffffff;
+            border-radius: 20px;
+
+            overflow-y: auto;
+        }
+
+        #leaderboard-box h2 {
+            margin: 0 0 6px;
+            text-align: center;
+            color: #0d3b66;
+        }
+
+        #leaderboard-box .lb-subtitle {
+            margin: 0 0 18px;
+            text-align: center;
+            font-size: 13px;
+            color: #888;
+        }
+
+        #leaderboard-close {
+            position: absolute;
+            top: 14px;
+            right: 16px;
+
+            border: none;
+            background: none;
+
+            font-size: 20px;
+            line-height: 1;
+            color: #999;
+
+            cursor: pointer;
+        }
+
+        .rank-row {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+
+            padding: 14px 12px;
+            margin-bottom: 8px;
+
+            background: #f5f7fa;
+            border-radius: 12px;
+        }
+
+        .rank-row:first-child {
+            background: #fff6db;
+        }
+
+        .rank-num {
+            width: 28px;
+            font-weight: bold;
+            color: #1976d2;
+            text-align: center;
+        }
+
+        .rank-name {
+            flex: 1;
+            font-weight: bold;
+            color: #333;
+        }
+
+        .rank-sub {
+            display: block;
+            margin-top: 2px;
+            font-size: 12px;
+            font-weight: normal;
+            color: #888;
+        }
+
+        .rank-row.unqualified {
+            background: #f0f0f0;
+            opacity: 0.75;
+        }
+
+        .rank-row.unqualified .rank-num {
+            color: #aaa;
+        }
+
+        .rank-section-label {
+            margin: 18px 0 8px;
+            font-size: 13px;
+            color: #999;
+        }
+
+        .rank-score {
+            font-weight: bold;
+            color: #1976d2;
+        }
+
+        .rank-empty {
+            text-align: center;
+            color: #999;
+            padding: 20px 0;
         }
     </style>
 </head>
+
 <body>
 
-    <canvas id="gameCanvas" width="1000" height="800"></canvas>
+    <div id="game-container">
 
-    <script src="game.js"></script>
+        <!-- 게임 Canvas -->
+        <canvas
+            id="gameCanvas"
+            width="1500"
+            height="850">
+        </canvas>
+
+        <!-- 시작 화면 -->
+        <div id="start-screen">
+
+            <h1>손위생 게임</h1>
+
+            <select id="department">
+                <option value="">부서를 선택해주세요</option>
+                <option value="B관 11병동">B관 11병동</option>
+                <option value="B관 13병동">B관 13병동</option>
+                <option value="A관 6병동">A관 6병동</option>
+                <option value="중환자실">중환자실</option>
+                <option value="영상의학과">영상의학과</option>
+                <option value="재활치료실">재활치료실</option>
+                <option value="입원전담팀">입원전담팀</option>
+                <option value="처치전담팀">처치전담팀</option>
+                <option value="응급실">응급실</option>
+            </select>
+
+            <input
+                type="number"
+                id="employee-id"
+                placeholder="사번을 입력해주세요">
+<p class="privacy-notice">
+    개인점수는 공개되지 않습니다
+</p>
+            <button id="start-button">
+                게임 시작
+            </button>
+
+            <button id="leaderboard-button" type="button">
+                🏆 팀 순위보기
+            </button>
+
+        </div>
+
+        <!-- 실시간 팀 순위 모달 -->
+        <div id="leaderboard-modal" class="hidden">
+            <div id="leaderboard-box">
+                <button id="leaderboard-close" type="button">✕</button>
+                <h2>실시간 팀 순위</h2>
+                <p class="lb-subtitle">부서 전체 인원 대비 완주율 순위 (개인 점수는 공개되지 않습니다)</p>
+                <div id="team-rank-list">
+                    <p class="rank-empty">불러오는 중...</p>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- 게임 JavaScript -->
+    <script type="module" src="game.js"></script>
+
 </body>
 </html>
