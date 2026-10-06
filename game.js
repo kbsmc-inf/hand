@@ -32,8 +32,9 @@ const db = getFirestore(firebaseApp);
 const canvas = document.getElementById("gameCanvas");
 const ctx = canvas.getContext("2d");
 
-const WIDTH = 1500;
-const HEIGHT = 850;
+let WIDTH = 1500;
+let HEIGHT = 850;
+let portraitMode = false;
 
 
 // ------------------------------------------------------
@@ -126,6 +127,39 @@ const confirmButton = {
     width: 200,
     height: 70
 };
+
+function resizeCanvasForOrientation() {
+
+    portraitMode = window.matchMedia("(orientation: portrait)").matches;
+    WIDTH = portraitMode ? 850 : 1500;
+    HEIGHT = portraitMode ? 1500 : 850;
+
+    if (canvas.width !== WIDTH || canvas.height !== HEIGHT) {
+        canvas.width = WIDTH;
+        canvas.height = HEIGHT;
+    }
+
+    if (portraitMode) {
+        Object.assign(yesButton, { x: 80, y: 1135, width: 690, height: 125 });
+        Object.assign(noButton, { x: 80, y: 1290, width: 690, height: 125 });
+        Object.assign(introButton, { x: 225, y: 1030, width: 400, height: 105 });
+        Object.assign(confirmButton, { x: 325, y: 875, width: 200, height: 75 });
+    } else {
+        Object.assign(yesButton, { x: 150, y: 680, width: 550, height: 120 });
+        Object.assign(noButton, { x: 800, y: 680, width: 550, height: 120 });
+        Object.assign(introButton, { x: 550, y: 690, width: 400, height: 110 });
+        Object.assign(confirmButton, { x: 650, y: 400, width: 200, height: 70 });
+    }
+
+    if (gameStarted) {
+        if (showingIntro) drawIntroScreen();
+        else drawGame();
+    }
+
+}
+
+window.addEventListener("resize", resizeCanvasForOrientation);
+resizeCanvasForOrientation();
 
 
 // ------------------------------------------------------
@@ -581,13 +615,23 @@ function drawGame() {
     // 이미지 경로가 잘못되어 로딩에 실패해도 게임 화면 전체가 멈추지 않게 합니다.
     if (currentBackground.complete && currentBackground.naturalWidth > 0) {
 
-        ctx.drawImage(
-            currentBackground,
-            0,
-            0,
-            WIDTH,
-            HEIGHT
-        );
+        if (portraitMode) {
+            const scale = Math.max(
+                WIDTH / currentBackground.naturalWidth,
+                HEIGHT / currentBackground.naturalHeight
+            );
+            const imageWidth = currentBackground.naturalWidth * scale;
+            const imageHeight = currentBackground.naturalHeight * scale;
+            ctx.drawImage(
+                currentBackground,
+                (WIDTH - imageWidth) / 2,
+                (HEIGHT - imageHeight) / 2,
+                imageWidth,
+                imageHeight
+            );
+        } else {
+            ctx.drawImage(currentBackground, 0, 0, WIDTH, HEIGHT);
+        }
 
     }
 
@@ -747,32 +791,36 @@ function drawIntroScreen() {
     // 흰색 카드
     ctx.fillStyle = "#ffffff";
     roundRect(
-        300,
-        190,
-        900,
-        470,
+        portraitMode ? 40 : 300,
+        portraitMode ? 350 : 190,
+        portraitMode ? 770 : 900,
+        portraitMode ? 790 : 470,
         35
     );
     ctx.fill();
 
     // 상황 제목 (예: 첫번째 상황)
     ctx.fillStyle = "#0d3b66";
-    ctx.font = "bold 56px 'Noto Sans KR', sans-serif";
+    ctx.font = portraitMode
+        ? "bold 48px 'Noto Sans KR', sans-serif"
+        : "bold 56px 'Noto Sans KR', sans-serif";
     ctx.fillText(
         situation.title,
         WIDTH / 2,
-        300
+        portraitMode ? 520 : 300
     );
 
     // 상황 설명
     ctx.fillStyle = "#333333";
-    ctx.font = "bold 30px 'Noto Sans KR', sans-serif";
+    ctx.font = portraitMode
+        ? "bold 29px 'Noto Sans KR', sans-serif"
+        : "bold 30px 'Noto Sans KR', sans-serif";
     drawWrappedText(
         situation.description,
         WIDTH / 2,
-        400,
-        760,
-        44
+        portraitMode ? 760 : 400,
+        portraitMode ? 650 : 760,
+        portraitMode ? 44 : 44
     );
 
     // 시작하기 버튼
@@ -877,13 +925,14 @@ function startIntroBoxAnimation(duration = 300) {
 
 function drawLives() {
 
-    const startX = 50;
-    const startY = 35;
+    const startX = portraitMode ? 45 : 50;
+    const startY = portraitMode ? 38 : 35;
+    const spacing = portraitMode ? 58 : 65;
 
     for (let i = 0; i < 3; i++) {
 
         drawHeart(
-            startX + i * 65,
+            startX + i * spacing,
             startY,
             i < lives
         );
@@ -920,10 +969,10 @@ function drawScore() {
     ctx.fillStyle = "rgba(0, 102, 204, 0.95)";
 
     roundRect(
-        1220,
-        25,
-        230,
-        60,
+        portraitMode ? 590 : 1220,
+        portraitMode ? 30 : 25,
+        portraitMode ? 220 : 230,
+        portraitMode ? 58 : 60,
         30
     );
 
@@ -931,21 +980,21 @@ function drawScore() {
 
     ctx.fillStyle = "#f7f7f7";
 
-    ctx.font = "bold 28px Arial";
+    ctx.font = portraitMode ? "bold 22px Arial" : "bold 28px Arial";
     ctx.textAlign = "left";
 
     ctx.fillText(
         "SCORE",
-        1260,
-        64
+        portraitMode ? 615 : 1260,
+        portraitMode ? 67 : 64
     );
 
-    ctx.font = "bold 32px Arial";
+    ctx.font = portraitMode ? "bold 27px Arial" : "bold 32px Arial";
 
     ctx.fillText(
         score,
-        1390,
-        65
+        portraitMode ? 735 : 1390,
+        portraitMode ? 67 : 65
     );
 
     ctx.restore();
@@ -969,8 +1018,8 @@ function drawTimer() {
 
     ctx.fillText(
         `⏱ ${timeLeft}`,
-        750,
-        55
+        WIDTH / 2,
+        portraitMode ? 125 : 55
     );
 
     ctx.restore();
@@ -990,18 +1039,19 @@ function drawQuestion() {
 
     // 새 문제가 나타날 때 질문 상자가 살짝 확대되어 전환이 눈에 띕니다.
     const scale = 0.96 + (0.04 * (1 - Math.pow(1 - questionBoxProgress, 3)));
-    ctx.translate(WIDTH / 2, 582);
+    const questionCenterY = portraitMode ? 955 : 582;
+    ctx.translate(WIDTH / 2, questionCenterY);
     ctx.scale(scale, scale);
-    ctx.translate(-WIDTH / 2, -582);
+    ctx.translate(-WIDTH / 2, -questionCenterY);
 
     // 반투명 흰색 박스
     ctx.fillStyle = "rgba(255,255,255,0.94)";
 
     roundRect(
-        170,
-        520,
-        1160,
-        125,
+        portraitMode ? 35 : 170,
+        portraitMode ? 820 : 520,
+        portraitMode ? 780 : 1160,
+        portraitMode ? 270 : 125,
         30
     );
 
@@ -1015,7 +1065,13 @@ function drawQuestion() {
 
     // 현재 상황 안에서의 문제 번호
     ctx.fillStyle = "#e7f3ff";
-    roundRect(195, 535, 170, 42, 18);
+    roundRect(
+        portraitMode ? 60 : 195,
+        portraitMode ? 840 : 535,
+        170,
+        42,
+        18
+    );
     ctx.fill();
 
     ctx.fillStyle = "#1976d2";
@@ -1023,23 +1079,25 @@ function drawQuestion() {
     ctx.textAlign = "center";
     ctx.fillText(
         `문제 ${currentStepIndex + 1} / ${currentSituations[currentSituationIndex].steps.length}`,
-        280,
-        563
+        portraitMode ? 145 : 280,
+        portraitMode ? 868 : 563
     );
 
     // 질문
     ctx.fillStyle = "#222222";
 
-    ctx.font = "bold 35px 'Noto Sans KR', sans-serif";
+    ctx.font = portraitMode
+        ? "bold 31px 'Noto Sans KR', sans-serif"
+        : "bold 35px 'Noto Sans KR', sans-serif";
 
     ctx.textAlign = "center";
 
     drawWrappedText(
         question.question,
-        780,
-        592,
-        760,
-        38
+        WIDTH / 2,
+        portraitMode ? 965 : 592,
+        portraitMode ? 700 : 760,
+        portraitMode ? 42 : 38
     );
 
     ctx.restore();
@@ -1307,10 +1365,10 @@ function drawWrongAnswer(customMessage = null, isCorrect = false) {
     ctx.fillStyle = "#ffffff";
 
     roundRect(
-        250,
-        170,
-        1000,
-        320,
+        portraitMode ? 40 : 250,
+        portraitMode ? 500 : 170,
+        portraitMode ? 770 : 1000,
+        portraitMode ? 470 : 320,
         35
     );
 
@@ -1320,28 +1378,32 @@ function drawWrongAnswer(customMessage = null, isCorrect = false) {
     // 제목
     ctx.fillStyle = isCorrect ? "#168447" : "#e53935";
 
-    ctx.font = "bold 38px 'Noto Sans KR', sans-serif";
+    ctx.font = portraitMode
+        ? "bold 36px 'Noto Sans KR', sans-serif"
+        : "bold 38px 'Noto Sans KR', sans-serif";
 
     ctx.textAlign = "center";
 
     ctx.fillText(
         isCorrect ? "정답입니다!" : "틀렸습니다",
-        750,
-        235
+        WIDTH / 2,
+        portraitMode ? 590 : 235
     );
 
 
     // 설명
     ctx.fillStyle = "#333333";
 
-    ctx.font = "bold 27px 'Noto Sans KR', sans-serif";
+    ctx.font = portraitMode
+        ? "bold 26px 'Noto Sans KR', sans-serif"
+        : "bold 27px 'Noto Sans KR', sans-serif";
 
     drawWrappedText(
         customMessage || question.explanation,
-        325,
-        300,
-        850,
-        40,
+        portraitMode ? 90 : 325,
+        portraitMode ? 700 : 300,
+        portraitMode ? 660 : 850,
+        portraitMode ? 42 : 40,
         "left"
     );
 
@@ -1433,8 +1495,8 @@ function endGame(gameOver = false) {
 
     ctx.fillText(
         gameOver ? "하트를 모두 소진했습니다" : "게임이 끝났습니다!",
-        750,
-        330
+        WIDTH / 2,
+        portraitMode ? 700 : 330
     );
 
 
@@ -1444,8 +1506,8 @@ function endGame(gameOver = false) {
 
     ctx.fillText(
         `최종 점수 : ${score}점`,
-        750,
-        410
+        WIDTH / 2,
+        portraitMode ? 790 : 410
     );
 
 }

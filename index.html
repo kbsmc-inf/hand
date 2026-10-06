@@ -46,6 +46,16 @@
             display: block;
         }
 
+        /* 세로 화면에서는 세로형 게임 비율로 표시 */
+        @media screen and (orientation: portrait) {
+            #gameCanvas {
+                width: min(100vw, calc(100vh * 850 / 1500));
+                height: min(100vh, calc(100vw * 1500 / 850));
+                max-width: 850px;
+                max-height: 1500px;
+            }
+        }
+
         /* 시작 화면 */
         #start-screen {
             position: absolute;
