@@ -406,8 +406,34 @@ startButton.addEventListener("click", () => {
         return;
     }
 
+    // 사용자의 시작 버튼 동작에 맞춰 전체 화면과 가로 방향을 요청합니다.
+    requestLandscapeFullscreen();
+
     startGame(scenarios);
 });
+
+function requestLandscapeFullscreen() {
+
+    // 데스크톱에서는 전체 화면으로 강제 전환하지 않습니다.
+    if (!window.matchMedia("(pointer: coarse)").matches) return;
+
+    const fullscreenRequest = document.documentElement.requestFullscreen?.();
+
+    // 브라우저가 전체 화면 API를 지원하지 않으면 일반 화면으로 계속 진행합니다.
+    if (!fullscreenRequest) return;
+
+    fullscreenRequest
+        .then(() => {
+            if (screen.orientation?.lock) {
+                return screen.orientation.lock("landscape");
+            }
+        })
+        .catch((error) => {
+            // 기기나 브라우저가 방향 잠금을 지원하지 않아도 게임은 계속 진행합니다.
+            console.info("전체 화면 또는 가로 방향 잠금을 사용할 수 없습니다.", error);
+        });
+
+}
 
 
 // ------------------------------------------------------
