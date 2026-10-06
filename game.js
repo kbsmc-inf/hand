@@ -612,23 +612,46 @@ function drawGame() {
     // 배경
     ctx.clearRect(0, 0, WIDTH, HEIGHT);
 
+    if (portraitMode) {
+        ctx.fillStyle = "#eef4fb";
+        ctx.fillRect(0, 0, WIDTH, HEIGHT);
+    }
+
     // 이미지 경로가 잘못되어 로딩에 실패해도 게임 화면 전체가 멈추지 않게 합니다.
     if (currentBackground.complete && currentBackground.naturalWidth > 0) {
 
         if (portraitMode) {
-            const scale = Math.max(
-                WIDTH / currentBackground.naturalWidth,
-                HEIGHT / currentBackground.naturalHeight
+            // 세로 화면에서는 그림을 독립된 카드에 원본 비율로 맞춰 표시합니다.
+            const imageBox = { x: 35, y: 175, width: 780, height: 480 };
+            ctx.save();
+            ctx.fillStyle = "#ffffff";
+            roundRect(imageBox.x, imageBox.y, imageBox.width, imageBox.height, 28);
+            ctx.fill();
+
+            ctx.save();
+            roundRect(imageBox.x, imageBox.y, imageBox.width, imageBox.height, 28);
+            ctx.clip();
+
+            const scale = Math.min(
+                imageBox.width / currentBackground.naturalWidth,
+                imageBox.height / currentBackground.naturalHeight
             );
             const imageWidth = currentBackground.naturalWidth * scale;
             const imageHeight = currentBackground.naturalHeight * scale;
             ctx.drawImage(
                 currentBackground,
-                (WIDTH - imageWidth) / 2,
-                (HEIGHT - imageHeight) / 2,
+                imageBox.x + (imageBox.width - imageWidth) / 2,
+                imageBox.y + (imageBox.height - imageHeight) / 2,
                 imageWidth,
                 imageHeight
             );
+            ctx.restore();
+
+            ctx.strokeStyle = "#ffffff";
+            ctx.lineWidth = 5;
+            roundRect(imageBox.x, imageBox.y, imageBox.width, imageBox.height, 28);
+            ctx.stroke();
+            ctx.restore();
         } else {
             ctx.drawImage(currentBackground, 0, 0, WIDTH, HEIGHT);
         }
