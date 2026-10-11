@@ -76,6 +76,8 @@ let lives = 3;
 // 현재 진행 중인 "상황"의 인덱스, 그리고 그 상황 안에서 몇 번째 질문인지
 let currentSituationIndex = 0;
 let currentStepIndex = 0;
+let scoreAtSituationStart = 0;
+let endScreenMode = null;
 
 // 상황 소개(제목 + 설명) 화면을 보여주는 중인지 여부
 let showingIntro = false;
@@ -128,6 +130,13 @@ const confirmButton = {
     height: 70
 };
 
+const endScreenButton = {
+    x: 500,
+    y: 500,
+    width: 500,
+    height: 100
+};
+
 function resizeCanvasForOrientation() {
 
     portraitMode = window.matchMedia("(orientation: portrait)").matches;
@@ -144,18 +153,23 @@ function resizeCanvasForOrientation() {
         Object.assign(noButton, { x: 80, y: 1290, width: 690, height: 125 });
         Object.assign(introButton, { x: 225, y: 1030, width: 400, height: 105 });
         Object.assign(confirmButton, { x: 325, y: 875, width: 200, height: 75 });
+        Object.assign(endScreenButton, { x: 150, y: 930, width: 550, height: 110 });
     } else {
         Object.assign(yesButton, { x: 150, y: 680, width: 550, height: 120 });
         Object.assign(noButton, { x: 800, y: 680, width: 550, height: 120 });
         Object.assign(introButton, { x: 550, y: 690, width: 400, height: 110 });
         Object.assign(confirmButton, { x: 650, y: 400, width: 200, height: 70 });
+        Object.assign(endScreenButton, { x: 500, y: 500, width: 500, height: 100 });
     }
 
     if (gameStarted) {
+    if (endScreenMode) {
+        endGame(endScreenMode === "retry");
+    } else if (gameStarted) {
         if (showingIntro) drawIntroScreen();
         else drawGame();
     }
-
+    }
 }
 
 window.addEventListener("resize", resizeCanvasForOrientation);
@@ -168,7 +182,7 @@ resizeCanvasForOrientation();
 //
 // * index.html의 <select id="department"> value(한글 부서명)를 key로 사용합니다.
 // * 새 부서를 추가하려면 아래에 배열만 하나 더 추가하면 됩니다.
-// * 이미지 파일은 "images/부서폴더명/xxx.png" 규칙으로 넣어주세요.
+// * 이미지 파일은 "img/부서폴더명/xxx.png" 규칙으로 넣어주세요.
 //   (부서마다 폴더를 따로 만들어 관리하면 편합니다)
 
 // 각 부서는 "상황(situation)"의 배열입니다.
@@ -179,193 +193,256 @@ resizeCanvasForOrientation();
 // 상황을 더 추가하고 싶으면 해당 부서 배열에 { title, description, steps } 객체를
 // 이어서 추가하면 됩니다. (예: 두번째 상황, 세번째 상황 ...)
 
+const makeScenario = (title, checkpoints, images = []) => ({
+    title,
+    description: "상황에 따라 손위생이 필요한 시점을 선택해주세요.",
+    steps: checkpoints.map(([question, answer, explanation], index) => ({
+        image: images[index] || "img/01.jpg",
+        question,
+        answer,
+        explanation,
+        score: 10
+    }))
+});
+
 const scenariosByDepartment = {
 
-    // ---------------- 병동 ----------------
+    // ---------------- 병동 완료----------------
     "병동": [
-        {
-            title: "첫번째 상황",
-            description: "상황 설명을 듣고 손위생을 해야 하는지 선택해주세요.",
-            steps: [
-                {
-                    image: "img/ward/01.png",
-                    question: "환자 확인을 위해 팔찌를 확인하려고 환자를 접촉합니다. 손위생을 해야 할까요?",
-                    answer: true,
-                    explanation: "환자에게 접촉하기 전에는 손위생이 필요합니다.",
-                    score: 10
-                },
-                {
-                    image: "images/소아 중심정맥관 소독과 드레싱 관리.png",
-                    question: "기존 드레싱을 제거하기 위해 청결장갑을 착용합니다. 손위생을 해야 할까요?",
-                    answer: true,
-                    explanation: "장갑을 착용하기 전에도 손위생이 필요합니다.",
-                    score: 10
-                },
-                {
-                    image: "images/멸균 드레싱 키트 준비하는 간호사.png",
-                    question: "기존 드레싱을 제거한 후 새 드레싱을 위해 멸균장갑을 착용합니다. 손위생을 해야 할까요?",
-                    answer: true,
-                    explanation: "청결·무균 처치 전에 손위생을 실시해야 합니다.",
-                    score: 10
-                }
-            ]
-        }
-        // 두번째 상황이 필요하면 여기에 이어서 추가하세요:
-        // {
-        //     title: "두번째 상황",
-        //     description: "...",
-        //     steps: [ { image, question, answer, explanation, score }, ... ]
-        // }
+        makeScenario("V/S", [
+            ["팔찌로 환자 확인 시(접촉)\n 손위생을 해야할까요?", true, "환자 접촉 전 손위생이 필요합니다"],
+            ["[[강조]]손위생 후[[/강조]] 환자 확인을 하고 혈압을 측정합니다. \n추가로 손위생을 해야 할까요?", false, "손위생 후 단순 접촉이 반복될때마다 \n추가로 손위생할 필요는 없습니다"],
+            ["측정한 혈압을 간호카트로 돌아와 적습니다. 간호카트로 돌아가기 전 손위생을 해야 할까요?", true, "[[밑줄]]환자 접촉 후[[/밑줄]] 의료영역(간호카트)로 돌아가기 전 손위생이 필요합니다. \n *간호카트는 환자영역이 아닙니다."]
+        ], ["img/03_1.jpg", "img/03_6.jpg", "img/03_8.jpg"]),
+
+        makeScenario("IV", [
+            ["팔찌로 환자 확인 시(접촉)\n 손위생을 해야할까요?", true, "환자 접촉 전 손위생이 필요합니다"],
+            ["[[강조]]손위생 후[[/강조]] 환자 확인을 하고 정맥을 손으로 확인한 후 토니켓을 적용했습니다. 정맥확인 전 추가로 손위생을 해야할까요?", false, "손위생 후 단순 접촉이 반복될때마다 추가로 손위생할 필요는 없습니다"],
+            ["정맥 카테터를 삽입하기 위해 피부소독합니다. 소독 전 손위생을 해야 할까요?", true, "청결/무균 처치 전은 [[밑줄]]즉시[[/밑줄]] 손위생을 시행해야 합니다"],
+            ["정맥 카테터를 삽입 후 수액을 연결하고 처치를 마무리합니다. 마무리 후 손위생을 해야 할까요?", true, "체액 노출 위험 후는 '즉시' 손위생을 해야합니다"],
+            ["커튼을 닫고 환자 주변을 떠납니다. 손위생을 해야 할까요?", true, "환자 주변환경인 커튼을 만진 후 추가로 손위생이 필요합니다."],
+        ], ["img/03_1.jpg", "img/03_2.jpg", "img/03_3.jpg", "img/03_4.jpg", "img/03_5.jpg"]),
+ 
+        makeScenario("Suction", [
+            ["환자 확인을 위해 접촉하기 전 손위생을 해야 할까요?", true, "환자 접촉 전 손위생을 시행합니다."],
+            ["[[강조]]손위생 후[[/강조]] 환자 확인 후 장갑을 착용하고 suction합니다. 장갑 착용 전 [[밑줄]]추가로[[/밑줄]] 손위생을 해야 할까요?", true, "청결/무균 처치 전은 '즉시' 손위생을 시행합니다"],
+            ["흡인과 물품 정리를 마치고 장갑을 벗어 폐기합니다. 손위생을 해야 할까요?", true, "환자 처치 종료 후 '체액 노출 위험 후' 상황에서는 [[밑줄]]즉시[[/밑줄]] 손위생 합니다."]
+        ], ["img/03_1.jpg", "img/04_2.jpg", "img/04_3.jpg"]),
+
+        makeScenario("infusion pump 알람", [
+            ["알람이 울려 infusion pump를 확인합니다. \ninfusion pump를 [[강조]]만지기 전[[/강조]] 손위생을 해야 할까요?", false, "[[밑줄]]환자 주변 환경 접촉 전[[/밑줄]]은 손위생이 필요한 순간이 아닙니다."],
+            ["그렇다면, infusion pump를 [[강조]]만진 후[[/강조]] 손위생을 해야 할까요?", true, "[[밑줄]]환자 주변 환경 접촉 후[[/밑줄]]엔 손위생을 시행해야 합니다"],
+        ], ["img/05_2.jpg","img/05_2.jpg"]),
+
+        makeScenario("Chemoport needle insertion", [
+            ["팔찌로 환자 확인 시(접촉)\n 손위생을 해야할까요?", true, "환자 접촉 전 손위생이 필요합니다"],
+            ["장갑 착용 후 chemoport needle insertion을 시행합니다. 장갑 착용 전 손위생을 해야 할까요?", true, "청결/무균 처치 전에 손위생을 [[밑줄]]즉시[[/밑줄]]시행합니다."],
+            ["needle insertion을 마치고 장갑을 벗고 폐기합니다. 손위생을 해야 할까요?", true, "체액 노출 위험 후는 '즉시' 손위생을 해야합니다"]
+        ], ["img/03_1.jpg", "img/05_3.jpg", "img/04_3.jpg"]),
+
+        makeScenario("장갑과 손위생", [
+            ["손위생이 필요한 순간, 장갑 위로 손위생 가능할까요?", false, "손위생을 해야할 때, 장갑을 벗고 손위생을 해야합니다"]
+        ], ["img/07_2.jpg"])
     ],
 
-    // ---------------- 중환자실 (예시 - 이미지/문항은 직접 교체해주세요) ----------------
+    // ---------------- 중환자실 완료----------------
     "중환자실": [
-        {
-            title: "첫번째 상황",
-            description: "상황 설명을 듣고 손위생을 해야 하는지 선택해주세요.",
-            steps: [
-                {
-                    image: "images/흉부 포트 소독과 바늘 삽입.png",
-                    question: "인공호흡기 회로를 만지기 전, 손위생을 해야 할까요?",
-                    answer: true,
-                    explanation: "환자 주변 장비를 만지기 전에도 손위생이 필요합니다.",
-                    score: 10
-                }
-            ]
-        }
+        makeScenario("중심정맥관 드레싱", [
+            ["팔찌로 환자 확인 시(접촉)\n 손위생을 해야할까요?", true, "환자 접촉 전 손위생이 필요합니다"],
+            ["기존드레싱을 제거하기 위해 청결장갑을 착용합니다. 장갑 착용 전 손위생을 해야하나요?", true, "청결/무균 처치 전에 손위생을 [[밑줄]]즉시[[/밑줄]]시행합니다."],
+            ["기존 드레싱을 제거하고 장갑을 벗었습니다. 새 드레싱을 위해 멸균장갑을 착용하기 전 손위생을 해야 할까요?", true, "기존 드레싱 제거 후(체액노출 위험 후) & 새 드레싱을 위해 멸균장갑 착용(청결/무균 처치 전)에 해당하기 때문에 손위생을 시행합니다"],
+            ["중심정맥관 드레싱을 시행했습니다. [[밑줄]]시행 후 장갑을 벗고 폐기합니다.[[/밑줄]] 손위생을 해야 할까요?", true, "체액 노출 위험 후는 '즉시' 손위생을 해야합니다"],
+            ["날짜를 기재하고 물품 정리를 마쳤습니다. 손위생을 해야 할까요?", true, "환자 접촉 후 손위생을 시행합니다."]
+        ], ["img/03_1.jpg", "img/04_1.jpg", "img/04_3.jpg", "img/05_5.jpg", "img/05_6.jpg"]),
+
+        makeScenario("Suction", [
+            ["환자 확인을 위해 접촉하기 전 손위생을 해야 할까요?", true, "환자 접촉 전 손위생을 시행합니다."],
+            ["[[강조]]손위생 후[[/강조]] 환자 확인 후 장갑을 착용하고 suction합니다. 장갑 착용 전 [[밑줄]]추가로[[/밑줄]] 손위생을 해야 할까요?", true, "청결/무균 처치 전은 '즉시' 손위생을 시행합니다"],
+            ["흡인과 물품 정리를 마치고 장갑을 벗어 폐기합니다. 손위생을 해야 할까요?", true, "환자 처치 종료 후 '체액 노출 위험 후' 상황에서는 [[밑줄]]즉시[[/밑줄]] 손위생 합니다."]
+        ], ["img/03_1.jpg", "img/04_2.jpg", "img/04_3.jpg"]),
+        
+        makeScenario("위관 영양", [
+            ["팔찌로 환자 확인 시(접촉)\n 손위생을 해야할까요?", true, "환자 접촉 전 손위생이 필요합니다"],
+            ["장갑 착용 후 Feeding을 준비하고 연결합니다. 장갑 착용 전 손위생을 해야 할까요?", true, "청결/무균 처치 전은 [[밑줄]]즉시[[/밑줄]] 손위생을 시행해야 합니다"],
+            ["위관 영양 후 장갑을 벗어서 폐기합니다. 손위생을 해야 할까요?", true, "체액 노출 위험 후는 '즉시' 손위생을 해야합니다"]
+        ], ["img/03_1.jpg", "img/05_1.jpg", "img/04_3.jpg"]),
+
+        makeScenario("인공호흡기 응축수 제거", [
+            ["응축수 제거를 위해 환자에게 거즈(해피레이)를 적용합니다, 행위 전 손위생을 해야 할까요?", true, "환자 접촉 전 손위생을 합니다"],
+            ["회로를 분리하기 위해 장갑을 착용합니다. 장갑착용 전 손위생을 해야 할까요?", true, "청결/무균 처치 전은 [[밑줄]]즉시[[/밑줄]] 손위생을 시행해야 합니다"],
+            ["회로 응축수를 제거하고 다시 연결한 뒤 장갑을 벗어 폐기합니다. 폐기 후 손위생을 해야 할까요?", true, "체액 노출 위험 후는 '즉시' 손위생을 해야합니다"]
+        ], ["img/06_1.jpg", "img/04_1.jpg", "img/06_2.jpg"]),
+
+        makeScenario("환자 모니터 알람", [
+            ["알람이 울려 모니터를 확인하고 모니터를 조작합니다 \n모니터를 [[강조]]만지기 전[[/강조]] 손위생을 해야 할까요?", false, "[[밑줄]]환자 주변 환경 접촉 전[[/밑줄]]은 손위생이 필요한 순간이 아닙니다."],
+            ["그렇다면, 모니터를 [[강조]]만진 후[[/강조]] 손위생을 해야 할까요?", true, "[[밑줄]]환자 주변 환경 접촉 후[[/밑줄]]엔 손위생을 시행해야 합니다"]
+        ], ["img/05_4.jpg","img/05_4.jpg"]),
+
+        makeScenario("장갑과 손위생", [
+            ["손위생이 필요한 순간, 장갑 위로 손위생 가능할까요?", false, "손위생을 해야할 때, 장갑을 벗고 손위생을 해야합니다"]
+        ], ["img/07_2.jpg"])
+
+        
     ],
 
-    // ---------------- 영상의학과 (예시) ----------------
+    // ---------------- 영상의학과 완료----------------
     "영상의학과": [
-        {
-            title: "첫번째 상황",
-            description: "상황 설명을 듣고 손위생을 해야 하는지 선택해주세요.",
-            steps: [
-                {
-                    image: "images/차분한 병원 방사선 검사 이야기 (1).png",
-                    question: "검사대에 환자를 눕히기 전, 손위생을 해야 할까요?",
-                    answer: true,
-                    explanation: "환자 접촉 전에는 손위생이 필요합니다.",
-                    score: 10
-                }
-            ]
-        }
+        makeScenario("외래검사실에서 촬영", [
+            ["팔찌로 환자 확인 시(접촉)\n 손위생을 해야할까요?", true, "환자 접촉 전 손위생이 필요합니다"],
+            ["[[강조]]손위생 후[[/강조]] 환자 확인을 했습니다. \n 검사를 위해 환자 위치를 조정합니다\n 손위생을 해야할까요?", false, "단순 접촉이 반복되는 시점에는 손위생을 시행하지 않아도 됩니다"],
+            ["촬영된 결과물을 확인 후, 재검사를 위해 환자 위치를 재조정합니다 \n 손위생을 해야할까요?", false, "외래환경에서 반복적인 단순 접촉에서는 손위생을 추가로 시행하지 않아도 됩니다"],
+            ["촬영이 끝난 후, 다음 환자를 호명합니다.\n 손위생을 해야할까요? ", true, "촬영이 끝난 후 '환자 접촉 후'이기 때문에 손위생을 시행합니다."]
+        ], ["img/02_09.jpg", "img/02_01.jpg", "img/02_02.jpg", "img/02_06.jpg"]),
+
+        makeScenario("입원병실에서 촬영", [
+            ["환자 확인을 팔찌로 확인하기 전(접촉), 손위생을 해야할까요?", true, "환자 접촉 전에는 손위생이 필요합니다."],
+            ["[[강조]]손위생 후[[/강조]] 카세트를 적용합니다\n 손위생을 해야할까요?", false, "단순 접촉이 반복되는 시점에는 손위생을 시행하지 않아도 됩니다"],
+            ["검사를 위해 촬영 기계를 조작하기 전, \n 손위생을 해야할까요?", true, "촬영기계는 환자영역이 아니기 때문에 \n'환자 접촉 후' 시점으로 손위생 필요합니다"],
+            ["촬영 결과 확인 후 재검사를 위해 환자 위치를 조정합니다. \n 손위생을 해야할까요? ", true, "다시 환자영역으로 들어가 환자를 접촉해야하기 때문에, \n'환자 접촉 전'으로 손위생 필요합니다"],
+            ["검사를 위해 다시 촬영 기계를 조작합니다, \n 조작하기 전, 손위생을 해야할까요?", true, "촬영기계는 환자영역이 아니기 때문에 \n'환자 접촉 후' 시점으로 손위생 필요합니다"],
+            ["검사 후 카세트를 제거합니다, \n 제거하기 전, 손위생을 해야할까요?", true, "다시 환자영역으로 들어가 환자를 접촉해야하기 때문에, \n'환자 접촉 전'으로 손위생 필요합니다"],
+        ], ["img/02_07.jpg", "img/02_08.jpg", "img/02_04.jpg", "img/02_03.jpg", "img/02_04.jpg", "img/02_08.jpg"]),
+
+        makeScenario("입원병실에서 환자 주변 접촉 후", [
+            ["병실에서 환자 커튼을 접촉했습니다, 손위생을 해야 할까요?", true, "커튼, 사이드레일 등 환자 주변환경을 접촉한 후 반드시 손위생을 시행합니다"]
+        ], ["img/02_05.jpg"]),
+
+        makeScenario("장갑과 손위생", [
+            ["손위생이 필요한 순간, 장갑 위로 손위생 가능할까요?", false, "손위생을 해야할 때, 장갑을 벗고 손위생을 해야합니다"]
+        ], ["img/07_2.jpg"])
     ],
 
-
+    // ---------------- 재활치료실 완료----------------
     "재활치료실": [
-        {
-            title: "첫번째 상황",
-            description: "상황 설명을 듣고 손위생을 해야 하는지 선택해주세요.",
-            steps: [
-                {
-                    image: "img/01_01.jpg",
-                    question: "환자 팔찌로 환자를 확인하기 전 손위생을 해야할까요?",
-                    answer: true,
-                    explanation: "환자 접촉 전에는 손위생이 필요합니다.",
-                    score: 10
-                },
-                {
-                    image: "img/01_02.jpg",
-                    question: "치료매트로 이동해서 치료를 시작합니다. 추가로 손위생을 해야할까요?",
-                    question: "[[강조]]손위생 후[[/강조]] 환자 확인을 시행했습니다.\n치료매트로 이동해서 치료를 시작합니다. \n추가로 손위생을 해야할까요?",
-                    answer: false,
-                    explanation: "환자 확인 전 손위생을 했다면, 추가로 손위생을할 필요가 없습니다.",
-                    score: 10
-                },
-                {
-                    image: "img/01_02.jpg",
-                    question: "치료가 끝나 환자 치료를 종료하고 환자를 떠날 때, \n손위생을 해야할까요?",
-                    answer: true,
-                    explanation: "환자 접촉 후 손위생을 시행해야 합니다",
-                    score: 10
-                }
-            ]
-        },
-        {
-            title: "두번째 상황",
-            description: "상황 설명을 듣고 손위생을 해야 하는지 선택해주세요.",
-            steps: [
-                {
-                    image: "img/01_02.jpg",
-                    question: "환자A 물리치료를 시작합니다. 시작 전 손위생을 해야할까요?",
-                    answer: true,
-                    explanation: "환자 접촉 전에는 손위생이 필요합니다.",
-                    score: 10
-                },
-                {
-                    image: "img/01_04.jpg",
-                    question: "환자A 치료가 끝난 후 [[강조]]손위생을 한 다음[[/강조]] 환자B 치료 시작 전, 손위생을 또 해야할까요?",
-                    answer: false,
-                    explanation: "환자A 치료 후 [[강조]]손위생을 시행했다면[[/강조]] \n 환자A 환자접촉 후 + 환자B 환자접촉 전 \n손위생이 되어 추가로 손위생이 필요하지 않습니다",
-                    score: 10
-                }
-            ]
-        },
-        {
-            title: "세번째 상황",
-            description: "상황 설명을 듣고 손위생을 해야 하는지 선택해주세요.",
-            steps: [
-                {
-                    image: "img/01_02.jpg",
-                    question: "환자A를 치료하고 있는 도중, \n환자B 접수하기 위해 떠납니다. 손위생을 해야할까요?",
-                    answer: true,
-                    explanation: "환자A를 접촉한 후이면서, 환자B 접촉 전입니다. 손위생이 필요합니다",
-                    score: 10
-                },
-                {
-                    image: "img/01_04.jpg",
-                    question: "환자B 치료 기구를 적용한 후 \n환자A 치료를 위해 환자A에게 갑니다, \n 손위생을 또 해야할까요?",
-                    answer: true,
-                    explanation: "환자B를 접촉한 후이면서, 환자A 접촉 전입니다. 손위생이 필요합니다",
-                    score: 10
-                }
-            ]
-        },
-        {
-            title: "네번째 상황",
-            description: "상황 설명을 듣고 손위생을 해야 하는지 선택해주세요.",
-            steps: [
-                {
-                    image: "img/01_02.jpg",
-                    question: "환자A를 치료하고 있는 도중, \n환자B 상태를 확인하기 위해 떠납니다. 손위생을 해야할까요?",
-                    answer: true,
-                    explanation: "환자A를 접촉한 후이면서, 환자B 접촉 전입니다. \n손위생이 필요합니다",
-                    score: 10
-                },
-                {
-                    image: "img/01_07.jpg",
-                    question: "[[강조]]손위생을 한 후[[/강조]] 환자C 옆에 혈압계를 가지고 \n환자B 혈압을 측정합니다\n손위생을 해야할까요?",
-                    answer: false,
-                    explanation: "환자C 옆에있는 공용 의료기구는 환자영역이 아니기 때문에 \n만진 후 손위생은 필요없습니다.",
-                    score: 10
-                },
-                {
-                    image: "img/01_03.jpg",
-                    question: "다시 환자A 치료를 진행합니다. \n치료 전 손위생을 해야할까요?",
-                    answer: true,
-                    explanation: "환자A를 접촉하기 전이기 때문에 손위생이 필요합니다.",
-                    score: 10
-                },
-            ]
-        }
+        makeScenario("첫번째 상황", [
+            ["환자 팔찌로 환자를 확인하기 전 손위생을 해야할까요?", true, "환자 접촉 전에는 손위생이 필요합니다."],
+            ["[[강조]]손위생 후[[/강조]] 환자 확인 후\n치료매트로 이동해서 치료를 시작합니다. \n추가로 손위생을 해야할까요?", false, "환자 확인 전 손위생을 했다면, 추가로 손위생을할 필요가 없습니다."],
+            ["치료가 끝났습니다. 환자를 떠날 때, \n손위생을 해야할까요?", true, "환자 접촉 후 손위생을 시행해야 합니다"]
+        ], ["img/01_01.jpg", "img/01_02.jpg", "img/01_02.jpg"]),
+
+        makeScenario("두번째 상황", [
+            ["환자A 물리치료를 시작합니다. 시작 전 손위생을 해야할까요?", true, "환자 접촉 전에는 손위생이 필요합니다."],
+            ["환자A 치료가 끝난 후 [[강조]]손위생을 했습니다.[[/강조]] \n환자B 치료 시작 전, 손위생을 또 해야할까요?", false, "환자A 치료 후 [[강조]]손위생을 시행했다면[[/강조]] \n 환자A 환자접촉 후 + 환자B 환자접촉 전 \n손위생이 되어 추가로 손위생이 필요하지 않습니다"]
+        ], ["img/01_02.jpg", "img/01_04.jpg"]),
+
+        makeScenario("세번째 상황", [
+            ["환자A를 치료하고 있는 도중, \n환자B를 접수하기 위해 떠납니다. 손위생을 해야할까요?", true, "환자A를 접촉한 후이면서, 환자B 접촉 전입니다. 손위생이 필요합니다"],
+            ["환자B 치료 기구를 적용한 후 \n환자A 치료를 다시 시행하기 위해 환자A에게 갑니다, \n 손위생을 또 해야할까요?", true, "환자B를 접촉한 후이면서, 환자A 접촉 전입니다. 손위생이 필요합니다"]
+        ], ["img/01_02.jpg", "img/01_04.jpg"]),
+
+        makeScenario("네번째 상황", [
+            ["환자A를 치료하고 있는 도중, \n환자B 상태를 확인하기 위해 떠납니다. 손위생을 해야할까요?", true, "환자A를 접촉한 후이면서, 환자B 접촉 전입니다. \n손위생이 필요합니다"],
+            ["[[강조]]손위생 후[[/강조]] 환자C 옆에 혈압계를 가지고 \n환자B 혈압을 측정합니다\n손위생을 해야할까요?", false, "환자C 옆에있는 공용 의료기구는 환자영역이 아니기 때문에 \n만진 후 손위생은 필요없습니다."],
+            ["다시 환자A 치료를 진행합니다. \n치료 전 손위생을 해야할까요?", true, "환자A를 접촉하기 전이기 때문에 손위생이 필요합니다."]
+        ], ["img/01_02.jpg", "img/01_07.jpg", "img/01_03.jpg"]),
+
+        makeScenario("장갑과 손위생", [
+            ["손위생이 필요한 순간, 장갑 위로 손위생 가능할까요?", false, "손위생을 해야할 때, 장갑을 벗고 손위생 합니다"]
+        ], ["img/07_2.jpg"])
     ],
 
-    // ---------------- 처치전담팀 (예시) ----------------
+    // ---------------- 처치전담팀 ----------------
     "처치전담팀": [
-        {
-            title: "첫번째 상황",
-            description: "상황 설명을 듣고 손위생을 해야 하는지 선택해주세요.",
-            steps: [
-                {
-                    image: "images/멸균 드레싱 키트 준비하는 간호사.png",
-                    question: "채혈을 위해 장갑을 착용하기 전, 손위생을 해야 할까요?",
-                    answer: true,
-                    explanation: "장갑 착용 전에도 손위생이 필요합니다.",
-                    score: 10
-                }
-            ]
-        }
+        makeScenario("혈액배양검사", [
+            ["검사 물품을 준비하기 전 손위생을 해야 할까요?", true, "물품 준비 전에 손위생(청결무균처치 전)을 시행합니다."],
+            ["물품 준비 후 환자 팔찌로 환자확인(접촉)을 시행합니다 손위생을 해야 할까요?", true, "환자 접촉 전 손위생을 시행합니다."],
+            ["[[강조]]손위생 후[[/강조]]환자 확인을 하고 정맥을 손으로 확인한 후 토니켓을 적용했습니다.", false, "단순 접촉이 반복될때마다 앞에 손위생을 시행했다면, 추가로 손위생할 필요는 없습니다"],
+            ["배양검사 시행을 위해 장갑을 착용합니다. \n장갑 착용 전, 손위생을 해야 할까요?", true, "청결무균 처치 전 반드시 손위생을 시행합니다."],            
+            ["배양검사 후 장갑을 벗고 폐기합니다. \n손위생을 해야 할까요?", true, "'체액노출 위험 후'에 해당되기 때문에 즉시 손위생을 시행합니다."],
+            ["[[강조]]손위생 후[[/강조]]다른 부위 채혈을 위해 정맥 확인 후 토니켓을 적용합니다. \n 행위 전 손위생을 해야 할까요?", false, "이미 앞에 손위생을 한 후 단순 접촉 시행이기 때문에 손위생을 추가로할 필요가 없습니다."],
+            ["배양 검사 전 장갑을 착용합니다. \n 장갑 착용 전 손위생을 해야 할까요?", true, "청결무균 처치 전 반드시 손위생을 시행합니다."],            
+            ["배양검사 후 장갑을 벗고 사용한 물품을 정리합니다. \n손위생을 해야 할까요?", true, "'체액노출 위험 후'에 해당되기 때문에 즉시 손위생을 시행합니다."]
+        ], ["img/07_1.jpg","img/03_1.jpg", "img/03_2.jpg", "img/09.jpg", "img/09_01.jpg", "img/03_2.jpg", "img/09.jpg", "img/09_01.jpg"]),
+        
+        makeScenario("L-tube insertion", [
+            ["물품을 준비하기 전 손위생을 해야 할까요?", true, "물품 준비 전은 청결무균 처치 전으로 손위생을 시행합니다."],
+            ["환자 확인을 위해 접촉하기 전 손위생을 해야 할까요?", true, "환자 접촉 전 손위생을 시행합니다."],
+            ["L-tube 삽입을 위해 장갑을 착용하기 전 손위생을 해야 할까요?", true, "청결무균 처치 전 [[밑줄]]즉시[[/밑줄]] 손위생을 시행합니다."],
+            ["L-tube 삽입 후 장갑을 벗고 물품 정리를 마쳤습니다. 손위생을 해야 할까요?", true, "'체액노출 위험 후'에 해당되기 때문에 [[밑줄]]즉시[[/밑줄]] 손위생을 시행합니다."]
+        ], ["img/09_3.jpg", "img/03_1.jpg","img/09_2.jpg", "img/04_3.jpg"]),
+
+        makeScenario("중심정맥관 드레싱", [
+            ["팔찌로 환자 확인 시(접촉)\n 손위생을 해야할까요?", true, "환자 접촉 전 손위생이 필요합니다"],
+            ["기존드레싱을 제거하기 위해 청결장갑을 착용합니다. 장갑 착용 전 손위생을 해야하나요?", true, "청결/무균 처치 전에 손위생을 [[밑줄]]즉시[[/밑줄]]시행합니다."],
+            ["기존 드레싱을 제거하고 장갑을 벗었습니다. 새 드레싱을 위해 멸균장갑을 착용하기 전 손위생을 해야 할까요?", true, "기존 드레싱 제거 후(체액노출 위험 후) & 새 드레싱을 위해 멸균장갑 착용(청결/무균 처치 전)에 해당하기 때문에 손위생을 시행합니다"],
+            ["중심정맥관 드레싱을 시행했습니다. [[밑줄]]시행 후 장갑을 벗고 폐기합니다.[[/밑줄]] 손위생을 해야 할까요?", true, "체액 노출 위험 후는 '즉시' 손위생을 해야합니다"],
+            ["날짜를 기재하고 물품 정리를 마쳤습니다. 손위생을 해야 할까요?", true, "환자 접촉 후 손위생을 시행합니다."]
+        ], ["img/03_1.jpg", "img/04_1.jpg", "img/04_3.jpg", "img/05_5.jpg", "img/05_6.jpg"]),
+
+        makeScenario("장갑과 손위생", [
+            ["손위생이 필요한 순간, 장갑 위로 손위생 가능할까요?", false, "손위생을 해야할 때, 장갑을 벗고 손위생 합니다"]
+        ], ["img/07_2.jpg"])
+    ],
+
+    // ---------------- 입원전담팀 ----------------
+    "입원전담팀": [
+        makeScenario("중심정맥관 드레싱", [
+            ["팔찌로 환자 확인 시(접촉)\n 손위생을 해야할까요?", true, "환자 접촉 전 손위생이 필요합니다"],
+            ["기존드레싱을 제거하기 위해 청결장갑을 착용합니다. 장갑 착용 전 손위생을 해야하나요?", true, "청결/무균 처치 전에 손위생을 [[밑줄]]즉시[[/밑줄]]시행합니다."],
+            ["기존 드레싱을 제거하고 장갑을 벗었습니다. 새 드레싱을 위해 멸균장갑을 착용하기 전 손위생을 해야 할까요?", true, "기존 드레싱 제거 후(체액노출 위험 후) & 새 드레싱을 위해 멸균장갑 착용(청결/무균 처치 전)에 해당하기 때문에 손위생을 시행합니다"],
+            ["중심정맥관 드레싱을 시행했습니다. [[밑줄]]시행 후 장갑을 벗고 폐기합니다.[[/밑줄]] 손위생을 해야 할까요?", true, "체액 노출 위험 후는 '즉시' 손위생을 해야합니다"],
+            ["날짜를 기재하고 물품 정리를 마쳤습니다. 손위생을 해야 할까요?", true, "환자 접촉 후 손위생을 시행합니다."]
+        ], ["img/03_1.jpg", "img/04_1.jpg", "img/04_3.jpg", "img/05_5.jpg", "img/05_6.jpg"]),
+
+        makeScenario("유치도뇨관 삽입", [
+            ["환자 확인을 위해 접촉하기 전 손위생을 해야 할까요?", true, "환자 접촉 전 손위생을 시행합니다."],
+            ["소변백을 설치하고 환자 체위를 변경하기 전 손위생을 해야 할까요?", false, "환자 확인 전 손위생 후, 단순 접촉이 반복될때마다 추가로 손위생할 필요는 없습니다"],
+            ["유치도뇨관 삽입을 위해 멸균장갑을 [[밑줄]]착용 전[[/밑줄]] 손위생을 해야 할까요?", true, "청결/무균 처치 전은 '즉시' 손위생을 시행합니다"],
+            ["유치도뇨관 삽입 후 사용한 장갑을 벗어 폐기합니다. 손위생을 해야 할까요?", true, "체액 노출 위험 후는 '즉시' 손위생을 해야합니다"],
+            ["유치도뇨관을 고정합니다. 고정 후 손위생을 해야 할까요?", true, "환자 접촉 후에는 손위생을 시행합니다"],
+            ["사용한 물품을 정리합니다. 물품 정리 후 손위생을 해야 할까요?", true, "사용한 물품 정리는 '체액 노출 후'에 해당하기 때문에 즉시 손위생을 시행합니다"]
+        ], ["img/08_1.jpg","img/08_2.jpg","img/08_4.jpg","img/04_3.jpg","img/08_5.jpg","img/08_6.jpg"]),
+
+        makeScenario("직장 도말검사", [
+            ["환자 병실 입구에서 가운, 장갑을 착용합니다. 보호구 착용 전 손위생을 해야할까요?", true, "환자 접촉 전 보호구 착용 전에 손위생을 시행합니다."],
+            ["환자 확인을 위해 접촉하기 전 추가로 손위생을 해야 할까요?", true, "단순 접촉이 반복될때마다 추가로 손위생할 필요는 없습니다"],  
+            ["검체 채취를 위해 장갑을 교체합니다. 장갑 교체 전 손위생을 해야 할까요?", true, "청결/무균 처치 전은 '즉시' 손위생을 시행합니다"],
+            ["검체를 채취 후 보호구를 벗었습니다. 손위생을 해야 할까요?", true, "검체 채취는 체액 노출 위험 후에 해당하기 때문에, '즉시' 손위생을 해야합니다 \n 또한, 보호구를 벗은 후에도 손위생을 시행해야 합니다"]
+        ], ["img/10(1).jpg","img/10(3).jpg","img/10(5).jpg","img/10(2).jpg"]),
+
+        makeScenario("장갑과 손위생", [
+            ["손위생이 필요한 순간, 장갑 위로 손위생 가능할까요?", false, "손위생을 해야할 때, 장갑을 벗고 손위생 합니다"]
+        ], ["img/07_2.jpg"])
+    ],
+
+    // ---------------- 응급실 ----------------
+    "응급실": [
+        makeScenario("유치도뇨관 삽입", [
+            ["환자 확인을 위해 접촉하기 전 손위생을 해야 할까요?", true, "환자 접촉 전 손위생을 시행합니다."],
+            ["소변백을 설치하고 환자 체위를 변경하기 전 손위생을 해야 할까요?", false, "환자 확인 전 손위생 후, 단순 접촉이 반복될때마다 추가로 손위생할 필요는 없습니다"],
+            ["유치도뇨관 삽입을 위해 멸균장갑을 [[밑줄]]착용 전[[/밑줄]] 손위생을 해야 할까요?", true, "청결/무균 처치 전은 '즉시' 손위생을 시행합니다"],
+            ["유치도뇨관 삽입 후 사용한 장갑을 벗어 폐기합니다. 손위생을 해야 할까요?", true, "체액 노출 위험 후는 '즉시' 손위생을 해야합니다"],
+            ["유치도뇨관을 고정합니다. 고정 후 손위생을 해야 할까요?", true, "환자 접촉 후에는 손위생을 시행합니다"],
+            ["사용한 물품을 정리합니다. 물품 정리 후 손위생을 해야 할까요?", true, "사용한 물품 정리는 '체액 노출 후'에 해당하기 때문에 즉시 손위생을 시행합니다"]
+        ], ["img/08_1.jpg","img/08_2.jpg","img/08_4.jpg","img/04_3.jpg","img/08_5.jpg","img/08_6.jpg"]),
+
+        makeScenario("환자 모니터 알람", [
+            ["알람이 울려 모니터를 확인하고 모니터를 조작합니다 \n모니터를 [[강조]]만지기 전[[/강조]] 손위생을 해야 할까요?", false, "[[밑줄]]환자 주변 환경 접촉 전[[/밑줄]]은 손위생이 필요한 순간이 아닙니다."],
+            ["그렇다면, 모니터를 [[강조]]만진 후[[/강조]] 손위생을 해야 할까요?", true, "[[밑줄]]환자 주변 환경 접촉 후[[/밑줄]]엔 손위생을 시행해야 합니다"]
+        ], ["img/05_4.jpg","img/05_4.jpg"]),
+
+        makeScenario("IV", [
+            ["팔찌로 환자 확인 시(접촉)\n 손위생을 해야할까요?", true, "환자 접촉 전 손위생이 필요합니다"],
+            ["[[강조]]손위생 후[[/강조]] 환자 확인을 하고 정맥을 손으로 확인한 후 토니켓을 적용했습니다. 정맥확인 전 추가로 손위생을 해야할까요?", false, "손위생 후 단순 접촉이 반복될때마다 추가로 손위생할 필요는 없습니다"],
+            ["정맥 카테터를 삽입하기 위해 피부소독합니다. 소독 전 손위생을 해야 할까요?", true, "청결/무균 처치 전은 [[밑줄]]즉시[[/밑줄]] 손위생을 시행해야 합니다"],
+            ["정맥 카테터를 삽입 후 수액을 연결하고 처치를 마무리합니다. 마무리 후 손위생을 해야 할까요?", true, "체액 노출 위험 후는 '즉시' 손위생을 해야합니다"],
+            ["커튼을 닫고 환자 주변을 떠납니다. 손위생을 해야 할까요?", true, "환자 주변환경인 커튼을 만진 후 추가로 손위생이 필요합니다."],
+        ], ["img/03_1.jpg", "img/03_2.jpg", "img/03_3.jpg", "img/03_4.jpg", "img/03_5.jpg"]),
+
+        makeScenario("혈액배양검사", [
+            ["검사 물품을 준비하기 전 손위생을 해야 할까요?", true, "물품 준비 전에 손위생(청결무균처치 전)을 시행합니다."],
+            ["물품 준비 후 환자 팔찌로 환자확인(접촉)을 시행합니다 손위생을 해야 할까요?", true, "환자 접촉 전 손위생을 시행합니다."],
+            ["[[강조]]손위생 후[[/강조]]환자 확인을 하고 정맥을 손으로 확인한 후 토니켓을 적용했습니다.", false, "단순 접촉이 반복될때마다 앞에 손위생을 시행했다면, 추가로 손위생할 필요는 없습니다"],
+            ["배양검사 시행을 위해 장갑을 착용합니다. \n장갑 착용 전, 손위생을 해야 할까요?", true, "청결무균 처치 전 반드시 손위생을 시행합니다."],            
+            ["배양검사 후 장갑을 벗고 폐기합니다. \n손위생을 해야 할까요?", true, "'체액노출 위험 후'에 해당되기 때문에 즉시 손위생을 시행합니다."],
+            ["[[강조]]손위생 후[[/강조]]다른 부위 채혈을 위해 정맥 확인 후 토니켓을 적용합니다. \n 행위 전 손위생을 해야 할까요?", false, "이미 앞에 손위생을 한 후 단순 접촉 시행이기 때문에 손위생을 추가로할 필요가 없습니다."],
+            ["배양 검사 전 장갑을 착용합니다. \n 장갑 착용 전 손위생을 해야 할까요?", true, "청결무균 처치 전 반드시 손위생을 시행합니다."],            
+            ["배양검사 후 장갑을 벗고 사용한 물품을 정리합니다. \n손위생을 해야 할까요?", true, "'체액노출 위험 후'에 해당되기 때문에 즉시 손위생을 시행합니다."]
+        ], ["img/07_1.jpg","img/03_1.jpg", "img/03_2.jpg", "img/09.jpg", "img/09_01.jpg", "img/03_2.jpg", "img/09.jpg", "img/09_01.jpg"]),
+
+        makeScenario("장갑과 손위생", [
+            ["손위생이 필요한 순간, 장갑 위로 손위생 가능할까요?", false, "손위생을 해야할 때, 장갑을 벗고 손위생 합니다"]
+        ], ["img/07_2.jpg"])
     ]
 
 };
@@ -385,13 +462,13 @@ let currentSituations = [];
 
 const departmentHeadcount = {
     "B관 11병동": 26,
-    "B관 13병동": 50,
-    "A관 6병동": 50,
+    "B관 13병동": 37,
+    "A관 6병동": 33,
     "중환자실": 20,
-    "영상의학과": 15,
-    "재활치료실": 10,
+    "영상의학과": 15000,
+    "재활치료실": 15,
     "처치전담팀": 8,
-    "입원전담팀": 8,
+    "입원전담팀": 9,
     "응급실":41
 };
 
@@ -477,6 +554,7 @@ function requestLandscapeFullscreen() {
 function startGame(scenarios) {
 
     gameStarted = true;
+    endScreenMode = null;
 
     currentSituations = scenarios;
 
@@ -510,6 +588,7 @@ function loadSituation() {
 
     clearInterval(timerInterval);
 
+    scoreAtSituationStart = score;
     currentStepIndex = 0;
     wrongAnswerShown = false;
     correctAnswerShown = false;
@@ -1247,6 +1326,17 @@ function handleCanvasTouch(event) {
 
 function checkAnswer(x, y) {
 
+    if (endScreenMode) {
+        if (isInsideButton(x, y, endScreenButton)) {
+            if (endScreenMode === "retry") {
+                retryFailedScenario();
+            } else {
+                returnToStartScreen();
+            }
+        }
+        return;
+    }
+
     if (!gameStarted) return;
 
     // 상황 소개 화면이라면, "시작하기" 버튼만 확인
@@ -1482,6 +1572,8 @@ function isInsideButton(x, y, button) {
 function endGame(gameOver = false) {
 
     gameStarted = false;
+    showingIntro = false;
+    endScreenMode = gameOver ? "retry" : "home";
 
     clearInterval(timerInterval);
 
@@ -1532,6 +1624,54 @@ function endGame(gameOver = false) {
         WIDTH / 2,
         portraitMode ? 790 : 410
     );
+
+    ctx.fillStyle = "#1976d2";
+    roundRect(endScreenButton.x, endScreenButton.y, endScreenButton.width, endScreenButton.height, 24);
+    ctx.fill();
+
+    ctx.fillStyle = "#ffffff";
+    ctx.font = portraitMode ? "bold 28px 'Noto Sans KR', sans-serif" : "bold 32px 'Noto Sans KR', sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(
+        gameOver ? "다시 도전하기" : "처음 화면으로 돌아가기",
+        endScreenButton.x + endScreenButton.width / 2,
+        endScreenButton.y + endScreenButton.height / 2
+    );
+
+    ctx.textBaseline = "alphabetic";
+
+}
+
+
+function retryFailedScenario() {
+
+    // 실패한 상황은 처음부터 다시 시작하고, 그 상황에서 얻은 점수는 초기화합니다.
+    score = scoreAtSituationStart;
+    lives = 3;
+    currentStepIndex = 0;
+    gameStarted = true;
+    scoreSaved = false;
+    wrongAnswerShown = false;
+    correctAnswerShown = false;
+    endScreenMode = null;
+    startScreen.classList.add("hidden");
+
+    loadSituation();
+
+}
+
+
+function returnToStartScreen() {
+
+    clearInterval(timerInterval);
+    gameStarted = false;
+    showingIntro = false;
+    endScreenMode = null;
+    wrongAnswerShown = false;
+    correctAnswerShown = false;
+    ctx.clearRect(0, 0, WIDTH, HEIGHT);
+    startScreen.classList.remove("hidden");
 
 }
 
@@ -1601,29 +1741,42 @@ function roundRect(x, y, width, height, radius) {
 // ------------------------------------------------------
 
 function drawWrappedText(text, x, y, maxWidth, lineHeight, align = "center") {
-
-    // 해설 문장에 [[강조]]중요한 말[[/강조]]를 쓰면 해당 부분을 주황색으로 표시합니다.
     const segments = [];
-    const marker = /\[\[강조\]\]([\s\S]*?)\[\[\/강조\]\]/g;
+    const marker = /\[\[(강조|밑줄)\]\]([\s\S]*?)\[\[\/\1\]\]/g;
     let cursor = 0;
     let match;
 
     while ((match = marker.exec(text)) !== null) {
         if (match.index > cursor) {
-            segments.push({ text: text.slice(cursor, match.index), emphasized: false });
+            segments.push({
+                text: text.slice(cursor, match.index),
+                emphasized: false,
+                underlined: false
+            });
         }
-        segments.push({ text: match[1], emphasized: true });
+
+        segments.push({
+            text: match[2],
+            emphasized: match[1] === "강조",
+            underlined: match[1] === "밑줄"
+        });
+
         cursor = marker.lastIndex;
     }
 
     if (cursor < text.length || segments.length === 0) {
-        segments.push({ text: text.slice(cursor), emphasized: false });
+        segments.push({
+            text: text.slice(cursor),
+            emphasized: false,
+            underlined: false
+        });
     }
 
     const characters = segments.flatMap((segment) =>
         Array.from(segment.text, (character) => ({
             character,
-            emphasized: segment.emphasized
+            emphasized: segment.emphasized,
+            underlined: segment.underlined
         }))
     );
 
@@ -1637,7 +1790,8 @@ function drawWrappedText(text, x, y, maxWidth, lineHeight, align = "center") {
             return;
         }
 
-        const candidate = line.map((part) => part.character).join("") + item.character;
+        const candidate =
+            line.map((part) => part.character).join("") + item.character;
 
         if (ctx.measureText(candidate).width > maxWidth && line.length > 0) {
             lines.push(line);
@@ -1651,7 +1805,10 @@ function drawWrappedText(text, x, y, maxWidth, lineHeight, align = "center") {
 
     const startY = y - ((lines.length - 1) * lineHeight) / 2;
     const originalFillStyle = ctx.fillStyle;
+    const originalStrokeStyle = ctx.strokeStyle;
+    const originalLineWidth = ctx.lineWidth;
     const originalTextAlign = ctx.textAlign;
+
     ctx.textAlign = "left";
 
     lines.forEach((lineItems, lineIndex) => {
@@ -1659,27 +1816,54 @@ function drawWrappedText(text, x, y, maxWidth, lineHeight, align = "center") {
 
         lineItems.forEach((item) => {
             const previousRun = runs[runs.length - 1];
-            if (previousRun && previousRun.emphasized === item.emphasized) {
+
+            if (
+                previousRun &&
+                previousRun.emphasized === item.emphasized &&
+                previousRun.underlined === item.underlined
+            ) {
                 previousRun.text += item.character;
             } else {
-                runs.push({ text: item.character, emphasized: item.emphasized });
+                runs.push({
+                    text: item.character,
+                    emphasized: item.emphasized,
+                    underlined: item.underlined
+                });
             }
         });
 
-        const lineWidth = runs.reduce((width, run) =>
-            width + ctx.measureText(run.text).width, 0);
+        const lineWidth = runs.reduce(
+            (width, run) => width + ctx.measureText(run.text).width,
+            0
+        );
+
         let drawX = align === "left" ? x : x - lineWidth / 2;
+        const drawY = startY + lineIndex * lineHeight;
 
         runs.forEach((run) => {
-            ctx.fillStyle = run.emphasized ? "#d84315" : originalFillStyle;
-            ctx.fillText(run.text, drawX, startY + lineIndex * lineHeight);
-            drawX += ctx.measureText(run.text).width;
+            const runWidth = ctx.measureText(run.text).width;
+            const runColor = run.emphasized ? "#d84315" : originalFillStyle;
+
+            ctx.fillStyle = runColor;
+            ctx.fillText(run.text, drawX, drawY);
+
+            if (run.underlined) {
+                ctx.strokeStyle = runColor;
+                ctx.lineWidth = 1.5;
+                ctx.beginPath();
+                ctx.moveTo(drawX, drawY + 3);
+                ctx.lineTo(drawX + runWidth, drawY + 3);
+                ctx.stroke();
+            }
+
+            drawX += runWidth;
         });
     });
 
     ctx.fillStyle = originalFillStyle;
+    ctx.strokeStyle = originalStrokeStyle;
+    ctx.lineWidth = originalLineWidth;
     ctx.textAlign = originalTextAlign;
-
 }
 
 // ------------------------------------------------------
@@ -1811,9 +1995,9 @@ function renderTeamLeaderboard(allScores) {
             <span class="rank-num">${medals[index] || (index + 1)}</span>
             <span class="rank-name">
                 ${e.dept}
-                <span class="rank-sub">완주 ${e.passCount}/${e.headcount}명 · 참여 ${e.participants}명 · 평균 ${e.average.toFixed(1)}점</span>
+                <span class="rank-sub">학습 ${e.passCount}/${e.headcount}명 · 참여 ${e.participants}명 · 평균 ${e.average.toFixed(1)}점</span>
             </span>
-            <span class="rank-score">완주율 ${Math.round(e.passRate * 100)}%</span>
+            <span class="rank-score">학습율 ${Math.round(e.passRate * 100)}%</span>
         </div>
     `).join("");
 
