@@ -469,7 +469,8 @@ const departmentHeadcount = {
     "재활치료실": 15,
     "처치전담팀": 8,
     "입원전담팀": 9,
-    "응급실":41
+    "응급실":41,
+    "B관 10병동": 10
 };
 
 
@@ -508,7 +509,7 @@ startButton.addEventListener("click", () => {
 
     // 선택한 부서의 시나리오 데이터 확인
     // 병동별 집계는 구분하되, 세 병동은 공통 "병동" 시나리오를 사용합니다.
-    const wardDepartments = ["B관 11병동", "B관 13병동", "A관 6병동"];
+    const wardDepartments = ["B관 11병동", "B관 13병동", "A관 6병동","B관 10병동"];
     const scenarioKey = wardDepartments.includes(department) ? "병동" : department;
     const scenarios = scenariosByDepartment[scenarioKey];
 
